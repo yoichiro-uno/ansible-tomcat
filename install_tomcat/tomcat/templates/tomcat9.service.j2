@@ -1,0 +1,17 @@
+[Unit]
+Description=Apache Tomcat 9
+After=network.target
+
+[Service]
+User={{tomcat_user}}
+Group={{tomcat_group}}
+Type=oneshot
+PIDFile={{tomcat_link}}/tomcat.pid
+RemainAfterExit=yes
+
+ExecStart={{tomcat_link}}/bin/startup.sh
+ExecStop={{tomcat_link}}/bin/shutdown.sh
+ExecReStart={{tomcat_link}}/bin/shutdown.sh;{{tomcat_link}}/bin/startup.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,74 @@
+---
+- name: Install Java before Tomcat
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - "java-{{ java_version }}-openjdk"
+    - "java-{{ java_version }}-openjdk-devel"
+
+- name: add group "tomcat"
+  group: 
+    name: "{{ tomcat_group }}"
+
+- name: add user "tomcat"
+  user: 
+    name: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    home: "{{ tomcat_home }}"
+    createhome: no
+  become: True
+  become_method: sudo
+
+- name: Download Tomcat
+  get_url:
+    url: "http://ftp.riken.jp/net/apache/tomcat/tomcat-{{ tomcat_major_version }}/v{{ tomcat_full_version }}/bin/apache-tomcat-{{ tomcat_full_version }}.tar.gz"
+    dest: "/opt/apache-tomcat-{{ tomcat_full_version }}.tar.gz"
+
+- name: Extract archive
+  shell: /bin/bash -lc "tar xzvf /opt/apache-tomcat-{{ tomcat_full_version }}.tar.gz -C /opt/"
+  register: _unarchive_result
+  failed_when: _unarchive_result.rc not in [0]
+
+- name: Change ownership of Tomcat installation
+  file: 
+    path: "/opt/apache-tomcat-{{ tomcat_full_version }}"
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    state: directory
+    recurse: yes
+
+- name: Symlink install directory
+  file:
+    src: "/opt/apache-tomcat-{{ tomcat_full_version }}"
+    path: "{{ tomcat_link }}"
+    state: link
+
+- name: Configure Tomcat server
+  template:
+    src: server.xml.j2
+    dest: "{{ tomcat_link }}/conf/server.xml"
+  notify: restart tomcat
+
+- name: Configure Tomcat users
+  template: 
+    src: tomcat-users.xml.j2
+    dest: "{{ tomcat_link }}/conf/tomcat-users.xml"
+  notify: restart tomcat
+
+- name: Install Tomcat init script
+  template: 
+    src: "tomcat{{tomcat_major_version}}.service.j2"
+    dest: /etc/systemd/system/tomcat.service
+    mode: 0755
+
+- name: Start Tomcat
+  service: 
+    name: tomcat
+    state: started
+    enabled: yes
+
+
+- name: wait for tomcat to start
+  wait_for: 
+    port: "{{http_port}}"
